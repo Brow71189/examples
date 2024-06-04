@@ -1,90 +1,94 @@
 # standard libraries
 import gettext
-import logging
-import threading
-import time
+import typing
 
 # third party libraries
 # None
 
 # local libraries
-# None
+from nion.swift.model import PlugInManager
+from nion.ui import Declarative
+from nion.utils import Converter
+from nion.utils import Event
+from nion.swift import Panel
+from nion.swift import DocumentController
+from nion.swift import Workspace
 
 _ = gettext.gettext
 
 
-class PanelExampleDelegate:
+class ExamplePanelUIHandler(Declarative.HandlerLike):
 
-    def __init__(self, api):
-        self.__api = api
-        self.panel_id = "example-panel"
-        self.panel_name = _("Example")
-        self.panel_positions = ["left", "right"]
-        self.panel_position = "right"
+    def __init__(self):
+        self.ui_view = typing.cast(Declarative.UIDescription, None)
+        self.property_changed_event = Event.Event()
+        self.integer_to_string_converter = Converter.IntegerToStringConverter()
+        self.__click_count = 0
+        self.__line_edit_text = ""
+        self.__reverted_line_edit_text = ""
 
-    def create_panel_widget(self, ui, document_controller):
-        column = ui.create_column_widget()
+    def close(self) -> None:
+        pass
 
-        edit_row = ui.create_row_widget()
-        edit_row.add(ui.create_label_widget(_("Edit Field")))
-        edit_row.add_spacing(12)
-        edit_line_edit = ui.create_line_edit_widget()
-        def editing_finished(text):
-            logging.info(text)
-            edit_line_edit.request_refocus()
-        edit_line_edit.on_editing_finished = editing_finished
-        edit_row.add(edit_line_edit)
-        edit_row.add_stretch()
+    @property
+    def click_count(self) -> int:
+        return self.__click_count
 
-        button_row = ui.create_row_widget()
-        button_widget = ui.create_push_button_widget(_("Push Me"))
-        def button_clicked():
-            edit_line_edit.text = str()
-        button_widget.on_clicked = button_clicked
-        button_row.add(button_widget)
-        button_row.add_stretch()
+    @click_count.setter
+    def click_count(self, count: int) -> None:
+        self.__click_count = count
+        self.property_changed_event.fire("click_count")
 
-        label_row = ui.create_row_widget()
-        label = ui.create_label_widget(_("Time: "))
-        time_label = ui.create_label_widget(time.strftime("%H:%M:%S"))
-        label_row.add(label)
-        label_row.add(time_label)
-        label_row.add_stretch()
+    def button_clicked(self, widget: Declarative.UIWidget) -> None:
+        self.click_count += 1
 
-        column.add_spacing(8)
-        column.add(edit_row)
-        column.add(button_row)
-        column.add_spacing(8)
-        column.add(label_row)
-        column.add_spacing(8)
-        column.add_stretch()
+    @property
+    def line_edit_text(self) -> str:
+        return self.__line_edit_text
 
-        def update_time_label():
-            time.sleep(5)
-            while True:
-                def do_update():
-                    time_label.text = time.strftime("%H:%M:%S")
-                self.__api.queue_task(do_update)
-                time.sleep(1)
+    @line_edit_text.setter
+    def line_edit_text(self, text: str) -> None:
+        self.__line_edit_text = text
+        self.property_changed_event.fire("line_edit_text")
+        self.property_changed_event.fire("line_edit_reverse_text")
 
-        threading.Thread(target=update_time_label).start()
+    @property
+    def line_edit_reverse_text(self) -> str:
+        return self.__line_edit_text[::-1]
 
+
+class ExampleUI:
+
+    def get_ui_handler(self) -> Declarative.HandlerLike:
+        handler = ExamplePanelUIHandler()
+        handler.ui_view = self.__create_ui_view()
+        return handler
+
+    def __create_ui_view(self) -> Declarative.UIDescription:
+        ui = Declarative.DeclarativeUI()
+        button = ui.create_push_button(text=_("Click me"), on_clicked="button_clicked")
+        label = ui.create_label(text='@binding(click_count, converter=integer_to_string_converter)')
+        row = ui.create_row(button, label, ui.create_stretch(), spacing=5)
+        line_edit = ui.create_line_edit(text='@binding(line_edit_text)')
+        reverted_label = ui.create_label(text='@binding(line_edit_reverse_text)')
+        column = ui.create_column(row, line_edit, reverted_label, ui.create_stretch(), spacing=5, margin=5)
         return column
 
 
-class PanelExampleExtension(object):
+class ExamplePanel(Panel.Panel):
+
+    def __init__(self, document_controller: DocumentController.DocumentController, panel_id: str, properties: typing.Mapping[str, typing.Any]) -> None:
+        super().__init__(document_controller, panel_id, "example-panel")
+        self.widget = Declarative.DeclarativeWidget(document_controller.ui, document_controller.event_loop, ExampleUI().get_ui_handler())
+
+
+class PanelExampleExtension:
 
     # required for Swift to recognize this as an extension class.
     extension_id = "nion.swift.examples.panel_example"
 
-    def __init__(self, api_broker):
-        # grab the api object.
-        api = api_broker.get_api(version="1", ui_version="1")
-        # be sure to keep a reference or it will be closed immediately.
-        self.__panel_ref = api.create_panel(PanelExampleDelegate(api))
+    def __init__(self, api_broker: PlugInManager.APIBroker) -> None:
+        Workspace.WorkspaceManager().register_panel(ExamplePanel, "example-panel", _("Example Panel"), ["left", "right"], "right")
 
     def close(self):
-        # close will be called when the extension is unloaded. in turn, close any references so they get closed. this
-        # is not strictly necessary since the references will be deleted naturally when this object is deleted.
-        self.__panel_ref.close()
-        self.__panel_ref = None
+        pass
