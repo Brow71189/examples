@@ -19,9 +19,9 @@ setuptools.setup(
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.10",
     ],
     include_package_data=True,
-    python_requires='~=3.11',
+    python_requires='~=3.10',
     zip_safe=False
 )
