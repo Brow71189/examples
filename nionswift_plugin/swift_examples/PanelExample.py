@@ -26,6 +26,7 @@ class ExamplePanelUIHandler(Declarative.HandlerLike):
         self.__click_count = 0
         self.__line_edit_text = ""
         self.__reverted_line_edit_text = ""
+        self.__radio_button_index = 3
 
     def close(self) -> None:
         pass
@@ -56,6 +57,24 @@ class ExamplePanelUIHandler(Declarative.HandlerLike):
     def line_edit_reverse_text(self) -> str:
         return self.__line_edit_text[::-1]
 
+    @property
+    def radio_button_index(self) -> int:
+        return self.__radio_button_index
+
+    @radio_button_index.setter
+    def radio_button_index(self, index: int) -> None:
+        self.__radio_button_index = index
+        self.property_changed_event.fire('radio_button_index')
+
+    def move_left_clicked(self, widget: Declarative.UIWidget) -> None:
+        if self.radio_button_index > 0:
+            self.radio_button_index -= 1
+
+    def move_right_clicked(self, widget: Declarative.UIWidget) -> None:
+        if self.radio_button_index < 6:
+            self.radio_button_index += 1
+
+
 
 class ExampleUI:
 
@@ -71,7 +90,13 @@ class ExampleUI:
         row = ui.create_row(button, label, ui.create_stretch(), spacing=5)
         line_edit = ui.create_line_edit(text='@binding(line_edit_text)')
         reverted_label = ui.create_label(text='@binding(line_edit_reverse_text)')
-        column = ui.create_column(row, line_edit, reverted_label, ui.create_stretch(), spacing=5, margin=5)
+        radio_buttons = [ui.create_radio_button(value=i, group_value='@binding(radio_button_index)') for i in range(7)]
+        radio_buttons_row = ui.create_row(*radio_buttons, spacing=5, margin=5)
+        move_left_button = ui.create_push_button(text='<-', on_clicked='move_left_clicked')
+        index_label = ui.create_label(text='@binding(radio_button_index, converter=integer_to_string_converter)')
+        move_right_button = ui.create_push_button(text='->', on_clicked='move_right_clicked')
+        move_row = ui.create_row(move_left_button, ui.create_stretch(), index_label, ui.create_stretch(), move_right_button, ui.create_stretch(), spacing=5, margin=5)
+        column = ui.create_column(row, line_edit, reverted_label, radio_buttons_row, move_row, ui.create_stretch(), spacing=5, margin=5)
         return column
 
 
